@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Integer Overflow Visualizer</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a222c;
+    --panel-2: #232d39;
+    --ink: #e6edf3;
+    --muted: #8b98a5;
+    --line: #2d3742;
+    --accent: #58a6ff;
+    --warn: #f0883e;
+    --danger: #f85149;
+    --ok: #3fb950;
+    --bit1: #58a6ff;
+    --bit0: #30363d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+    padding: 24px 16px 64px;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  header h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  header p { color: var(--muted); margin: 0 0 24px; max-width: 640px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .panel h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 16px; font-weight: 600; }
+  .controls { display: flex; flex-wrap: wrap; gap: 20px 32px; align-items: flex-end; }
+  .control { display: flex; flex-direction: column; gap: 6px; }
+  .control label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    background: var(--panel-2); color: var(--muted); border: none; padding: 8px 14px;
+    cursor: pointer; font-size: 0.9rem; font-family: inherit; transition: all 0.12s;
+  }
+  .seg button:hover { color: var(--ink); }
+  .seg button.active { background: var(--accent); color: #0b0f14; font-weight: 600; }
+  input[type=range] { width: 260px; accent-color: var(--accent); }
+  .btn {
+    background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 8px; padding: 9px 16px; cursor: pointer; font-size: 0.9rem; font-family: inherit;
+    transition: all 0.12s;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); color: #0b0f14; border-color: var(--accent); font-weight: 600; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+  .stepin { width: 90px; background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.9rem; }
+
+  .bits { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 18px; }
+  .bitgroup { display: flex; gap: 6px; }
+  .bit {
+    width: 42px; height: 52px; border-radius: 8px; background: var(--bit0);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; user-select: none; border: 1px solid var(--line); transition: all 0.1s;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .bit:hover { border-color: var(--accent); }
+  .bit.on { background: var(--bit1); color: #0b0f14; border-color: var(--bit1); }
+  .bit .b { font-size: 1.2rem; font-weight: 700; }
+  .bit .pw { font-size: 0.6rem; opacity: 0.7; margin-top: 2px; }
+  .bit.sign { box-shadow: inset 0 0 0 2px var(--warn); }
+
+  .readouts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 560px){ .readouts { grid-template-columns: 1fr; } .bit{width:36px;} input[type=range]{width:100%;} }
+  .readout { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .readout .k { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+  .readout .v { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1.7rem; font-weight: 700; margin-top: 2px; }
+  .readout .hint { font-size: 0.72rem; color: var(--muted); margin-top: 4px; }
+  .readout.flash { animation: flash 0.6s; }
+  @keyframes flash { 0%{ background: var(--warn); color:#0b0f14;} 100%{ background: var(--panel-2);} }
+
+  .hexline { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--muted); margin-top: 14px; font-size: 0.9rem; }
+  .hexline b { color: var(--ink); }
+
+  .msg { margin-top: 14px; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; min-height: 20px; }
+  .msg.wrap-hi { background: rgba(248,81,73,0.12); border: 1px solid var(--danger); color: #ffb3ad; }
+  .msg.wrap-lo { background: rgba(240,136,62,0.12); border: 1px solid var(--warn); color: #ffcfa0; }
+  .msg.calm { background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); }
+
+  details { margin-top: 20px; }
+  summary { cursor: pointer; color: var(--accent); font-size: 0.9rem; }
+  .why { color: var(--muted); font-size: 0.9rem; margin-top: 10px; }
+  .why code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: 0.85em; color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Integer Overflow Visualizer</h1>
+    <p>A fixed-width integer can only hold so many values. Push it past the top and it wraps back to the bottom, and the <em>same bits</em> mean different numbers depending on whether they're read as signed or unsigned. Play with the controls below to see it happen.</p>
+  </header>
+
+  <div class="panel">
+    <h2>Controls</h2>
+    <div class="controls">
+      <div class="control">
+        <label>Width</label>
+        <div class="seg" id="width">
+          <button data-w="8" class="active">8-bit</button>
+          <button data-w="16">16-bit</button>
+        </div>
+      </div>
+      <div class="control">
+        <label>Value</label>
+        <input type="range" id="slider" min="0" value="250">
+      </div>
+      <div class="control">
+        <label>Step by</label>
+        <div class="btn-row">
+          <input type="number" id="stepAmt" class="stepin" value="1">
+          <button class="btn" id="minus">&minus; subtract</button>
+          <button class="btn primary" id="plus">+ add</button>
+        </div>
+      </div>
+      <div class="control">
+        <label>&nbsp;</label>
+        <div class="btn-row">
+          <button class="btn" id="toMax">jump to MAX</button>
+          <button class="btn" id="reset">reset</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Stored bits <span style="font-weight:400;text-transform:none;letter-spacing:0;">(click a bit to flip it)</span></h2>
+
+    <div class="bits" id="bits"></div>
+    <div class="readouts">
+      <div class="readout" id="ruUns">
+        <div class="k">Unsigned interpretation</div>
+        <div class="v" id="unsVal">0</div>
+        <div class="hint" id="unsRange"></div>
+      </div>
+      <div class="readout" id="ruSig">
+        <div class="k">Signed interpretation (two's complement)</div>
+        <div class="v" id="sigVal">0</div>
+        <div class="hint" id="sigRange"></div>
+      </div>
+    </div>
+    <div class="hexline">Hex: <b id="hex">0x00</b> &nbsp;&middot;&nbsp; the leftmost bit (outlined) is the sign bit when read as signed</div>
+
+    <div class="msg calm" id="msg">Adjust the value or press <b>+ add</b> to watch what happens at the edge.</div>
+  </div>
+
+  <details open>
+    <summary>Why this matters</summary>
+    <div class="why">
+      <p>Overflow isn't just a curiosity. It's a real source of bugs and vulnerabilities. A classic pattern:</p>
+      <p><code>if (len + 1 &lt; buffer_size) { ... }</code>: if <code>len</code> is at the maximum value, <code>len + 1</code> wraps to a tiny number, the check passes, and a buffer gets overrun. Length and size calculations are where overflow does the most damage.</p>
+      <p>Two things to notice as you experiment: (1) adding past the maximum <em>wraps around</em> to the minimum instead of growing, because the value is always taken modulo 2<sup>width</sup>; (2) the exact same bit pattern is a large positive number when unsigned but can be negative when signed. For 8-bit, <code>0xFF</code> is <code>255</code> unsigned but <code>-1</code> signed.</p>
+    </div>
+  </details>
+</div>
+
+<script>
+(function(){
+  var width = 8;
+  var value = 250; // stored as the raw unsigned bit pattern
+
+  var $ = function(id){ return document.getElementById(id); };
+  var bitsEl = $('bits'), sliderEl = $('slider'), stepAmtEl = $('stepAmt');
+
+  function maxUnsigned(){ return Math.pow(2, width) - 1; }
+  function toSigned(v){
+    var half = Math.pow(2, width - 1);
+    return v >= half ? v - Math.pow(2, width) : v;
+  }
+  function hex(v){
+    var digits = width / 4;
+    var s = v.toString(16).toUpperCase();
+    while (s.length < digits) s = '0' + s;
+    return '0x' + s;
+  }
+
+  function renderBits(){
+    bitsEl.innerHTML = '';
+    var group = null;
+    for (var i = width - 1; i >= 0; i--){
+      if ((i + 1) % 8 === 0){ group = document.createElement('div'); group.className = 'bitgroup'; bitsEl.appendChild(group); }
+      var on = (value >> i) & 1;
+      var b = document.createElement('div');
+      b.className = 'bit' + (on ? ' on' : '') + (i === width - 1 ? ' sign' : '');
+      b.innerHTML = '<span class="b">' + on + '</span><span class="pw">2^' + i + '</span>';
+      (function(bitIndex){
+        b.onclick = function(){ value = value ^ (1 << bitIndex); if (value < 0) value += Math.pow(2, width); update(false); };
+      })(i);
+      group.appendChild(b);
+    }
+  }
+
+  function update(stepInfo){
+    value = ((value % Math.pow(2, width)) + Math.pow(2, width)) % Math.pow(2, width);
+    renderBits();
+    $('unsVal').textContent = value.toLocaleString();
+    $('sigVal').textContent = toSigned(value).toLocaleString();
+    $('unsRange').textContent = '0 to ' + maxUnsigned().toLocaleString();
+    $('sigRange').textContent = (-Math.pow(2, width-1)).toLocaleString() + ' to ' + (Math.pow(2, width-1)-1).toLocaleString();
+    $('hex').textContent = hex(value);
+    sliderEl.max = maxUnsigned();
+    sliderEl.value = value;
+
+    var msg = $('msg');
+    if (stepInfo && stepInfo.wrapped === 'hi'){
+      msg.className = 'msg wrap-hi';
+      msg.innerHTML = 'Overflow! The result exceeded the maximum (' + maxUnsigned().toLocaleString() + ') and <b>wrapped around</b> to a small value. In C this is silent, with no error and no warning.';
+      flash();
+    } else if (stepInfo && stepInfo.wrapped === 'lo'){
+      msg.className = 'msg wrap-lo';
+      msg.innerHTML = 'Underflow! The result dropped below 0 and <b>wrapped around</b> to a large value: <code>0 - 1</code> becomes ' + maxUnsigned().toLocaleString() + ' unsigned.';
+      flash();
+    } else {
+      msg.className = 'msg calm';
+      msg.innerHTML = 'Unsigned <b>' + value.toLocaleString() + '</b> and signed <b>' + toSigned(value).toLocaleString() + '</b> are the exact same bits. Only the interpretation differs.';
+    }
+  }
+
+  function flash(){
+    $('ruUns').classList.remove('flash'); $('ruSig').classList.remove('flash');
+    void $('ruUns').offsetWidth;
+    $('ruUns').classList.add('flash'); $('ruSig').classList.add('flash');
+  }
+
+  function step(dir){
+    var amt = parseInt(stepAmtEl.value, 10) || 0;
+    var raw = value + dir * amt;
+    var wrapped = null;
+    if (raw > maxUnsigned()) wrapped = 'hi';
+    if (raw < 0) wrapped = 'lo';
+    value = raw;
+    update({ wrapped: wrapped });
+  }
+
+  // wiring
+  $('plus').onclick = function(){ step(1); };
+  $('minus').onclick = function(){ step(-1); };
+  $('toMax').onclick = function(){ value = maxUnsigned(); update(false); };
+  $('reset').onclick = function(){ value = 0; update(false); };
+  sliderEl.oninput = function(){ value = parseInt(sliderEl.value, 10); update(false); };
+
+  var wBtns = $('width').querySelectorAll('button');
+  wBtns.forEach(function(btn){
+    btn.onclick = function(){
+      wBtns.forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      width = parseInt(btn.dataset.w, 10);
+      if (value > maxUnsigned()) value = maxUnsigned();
+      update(false);
+    };
+  });
+
+  update(false);
+})();
+</script>
+</body>
+</html>
